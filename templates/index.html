@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Multimodal GraphRAG 실습</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1a1f2e 0%, #0f1117 100%);
+      border-bottom: 1px solid #2d3748;
+      padding: 24px 40px;
+    }
+
+    header h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #90cdf4;
+    }
+
+    header p {
+      font-size: 0.85rem;
+      color: #718096;
+      margin-top: 4px;
+    }
+
+    .paper-badge {
+      display: inline-block;
+      background: #2d3748;
+      color: #90cdf4;
+      font-size: 0.75rem;
+      padding: 3px 10px;
+      border-radius: 20px;
+      margin-top: 8px;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 32px 20px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 24px;
+    }
+
+    /* ── 학습 목표 ── */
+    .objectives {
+      background: #1a1f2e;
+      border: 1px solid #2d3748;
+      border-left: 4px solid #4299e1;
+      border-radius: 12px;
+      padding: 24px;
+    }
+
+    .objectives h2 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #90cdf4;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .obj-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 12px;
+    }
+
+    .obj-item {
+      background: #0f1117;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 14px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .obj-num {
+      background: #4299e1;
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 700;
+      min-width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 1px;
+    }
+
+    .obj-text strong {
+      display: block;
+      font-size: 0.9rem;
+      color: #e2e8f0;
+      margin-bottom: 3px;
+    }
+
+    .obj-text span {
+      font-size: 0.78rem;
+      color: #718096;
+      line-height: 1.4;
+    }
+
+    /* ── 파이프라인 다이어그램 ── */
+    .pipeline-diagram {
+      background: #1a1f2e;
+      border: 1px solid #2d3748;
+      border-radius: 12px;
+      padding: 20px 24px;
+    }
+
+    .pipeline-diagram h2 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #718096;
+      margin-bottom: 16px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .pipeline-steps {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .pipe-step {
+      flex: 1;
+      min-width: 120px;
+      background: #0f1117;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 12px 14px;
+      text-align: center;
+      position: relative;
+      transition: all 0.3s ease;
+    }
+
+    .pipe-step.running {
+      border-color: #f6ad55;
+      background: #1a1300;
+      box-shadow: 0 0 12px rgba(246, 173, 85, 0.2);
+    }
+
+    .pipe-step.done {
+      border-color: #48bb78;
+      background: #0f1a12;
+    }
+
+    .pipe-step-num {
+      font-size: 0.7rem;
+      color: #4a5568;
+      margin-bottom: 4px;
+    }
+
+    .pipe-step-name {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #a0aec0;
+    }
+
+    .pipe-step.done .pipe-step-name { color: #48bb78; }
+    .pipe-step.running .pipe-step-name { color: #f6ad55; }
+
+    .pipe-step-icon {
+      font-size: 1.2rem;
+      margin-bottom: 4px;
+    }
+
+    .pipe-arrow {
+      color: #4a5568;
+      font-size: 1rem;
+      padding: 0 2px;
+    }
+
+    /* ── 쿼리 입력 ── */
+    .query-section {
+      background: #1a1f2e;
+      border: 1px solid #2d3748;
+      border-radius: 12px;
+      padding: 24px;
+    }
+
+    .query-section h2 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #718096;
+      margin-bottom: 16px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .preset-questions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .preset-btn {
+      background: #0f1117;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: #a0aec0;
+      font-size: 0.83rem;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.2s;
+    }
+
+    .preset-btn:hover {
+      border-color: #4299e1;
+      color: #e2e8f0;
+      background: #1a2230;
+    }
+
+    .preset-btn.active {
+      border-color: #4299e1;
+      background: #1a2230;
+      color: #90cdf4;
+    }
+
+    .query-input-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .query-input {
+      flex: 1;
+      background: #0f1117;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: #e2e8f0;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .query-input:focus {
+      border-color: #4299e1;
+    }
+
+    .run-btn {
+      background: #4299e1;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 24px;
+      color: #fff;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+
+    .run-btn:hover { background: #3182ce; }
+    .run-btn:disabled { background: #2d3748; cursor: not-allowed; }
+
+    /* ── 결과 패널 ── */
+    .results {
+      display: none;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .results.visible { display: flex; }
+
+    .step-card {
+      background: #1a1f2e;
+      border: 1px solid #2d3748;
+      border-radius: 12px;
+      overflow: hidden;
+      transition: border-color 0.3s;
+    }
+
+    .step-card.running { border-color: #f6ad55; }
+    .step-card.done { border-color: #48bb78; }
+
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 18px;
+      background: #0f1117;
+    }
+
+    .step-badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: #2d3748;
+      color: #718096;
+    }
+
+    .step-card.running .step-badge { background: #744210; color: #f6ad55; }
+    .step-card.done .step-badge { background: #1c4532; color: #48bb78; }
+
+    .step-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #e2e8f0;
+    }
+
+    .step-status {
+      margin-left: auto;
+      font-size: 0.8rem;
+      color: #718096;
+    }
+
+    .step-card.running .step-status { color: #f6ad55; }
+    .step-card.done .step-status { color: #48bb78; }
+
+    .spinner {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 2px solid #f6ad55;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 4px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .step-body {
+      padding: 16px 18px;
+    }
+
+    .data-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 10px;
+    }
+
+    .data-item {
+      background: #0f1117;
+      border: 1px solid #2d3748;
+      border-radius: 6px;
+      padding: 10px 12px;
+    }
+
+    .data-label {
+      font-size: 0.7rem;
+      color: #4a5568;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+    }
+
+    .data-value {
+      font-size: 0.85rem;
+      color: #e2e8f0;
+    }
+
+    .tag-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .tag {
+      background: #2d3748;
+      color: #a0aec0;
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    .tag.text { background: #1a3650; color: #90cdf4; }
+    .tag.table { background: #1a3028; color: #68d391; }
+    .tag.image { background: #2d1a50; color: #b794f4; }
+
+    .doc-list { display: flex; flex-direction: column; gap: 8px; }
+
+    .doc-item {
+      background: #0f1117;
+      border: 1px solid #2d3748;
+      border-radius: 6px;
+      padding: 10px 12px;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .doc-badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+
+    .doc-badge.text { background: #1a3650; color: #90cdf4; }
+    .doc-badge.table { background: #1a3028; color: #68d391; }
+    .doc-badge.image { background: #2d1a50; color: #b794f4; }
+
+    .doc-content { font-size: 0.82rem; color: #a0aec0; line-height: 1.5; }
+    .doc-score { font-size: 0.75rem; color: #4a5568; margin-left: auto; white-space: nowrap; }
+
+    .kg-stats {
+      display: flex;
+      gap: 16px;
+    }
+
+    .kg-stat {
+      background: #0f1117;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      padding: 16px 24px;
+      text-align: center;
+    }
+
+    .kg-stat-num {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #4299e1;
+    }
+
+    .kg-stat-label {
+      font-size: 0.75rem;
+      color: #718096;
+      margin-top: 4px;
+    }
+
+    .answer-box {
+      background: #0f1117;
+      border: 1px solid #48bb78;
+      border-radius: 10px;
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+
+    .answer-label {
+      font-size: 0.75rem;
+      color: #48bb78;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+
+    .answer-text {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #e2e8f0;
+      line-height: 1.5;
+    }
+
+    .confidence-bar-wrap {
+      margin-top: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .confidence-label { font-size: 0.75rem; color: #718096; }
+
+    .confidence-bar {
+      flex: 1;
+      height: 6px;
+      background: #2d3748;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .confidence-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #48bb78, #4299e1);
+      border-radius: 3px;
+      transition: width 0.8s ease;
+    }
+
+    .confidence-pct { font-size: 0.85rem; font-weight: 600; color: #e2e8f0; }
+
+    .reasoning-chain {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .reasoning-step {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .step-dot {
+      min-width: 22px;
+      height: 22px;
+      background: #4299e1;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #fff;
+      margin-top: 1px;
+    }
+
+    .step-text {
+      font-size: 0.85rem;
+      color: #a0aec0;
+      line-height: 1.5;
+    }
+
+    .graph-img {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #2d3748;
+      margin-top: 16px;
+    }
+
+    .evidence-nodes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+
+    .evidence-tag {
+      background: #3d1f1f;
+      border: 1px solid #c53030;
+      color: #fc8181;
+      font-size: 0.75rem;
+      padding: 3px 10px;
+      border-radius: 4px;
+    }
+
+    .section-label {
+      font-size: 0.75rem;
+      color: #4a5568;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Multimodal GraphRAG 파이프라인 실습</h1>
+  <p>Query-Driven Multimodal GraphRAG · ACL 2025 Findings</p>
+  <span class="paper-badge">논문 기반 5단계 파이프라인 구현</span>
+</header>
+
+<div class="container">
+
+  <!-- 학습 목표 -->
+  <div class="objectives">
+    <h2>🎯 학습 목표</h2>
+    <div class="obj-grid">
+      <div class="obj-item">
+        <div class="obj-num">1</div>
+        <div class="obj-text">
+          <strong>Query → Pattern Graph</strong>
+          <span>쿼리를 분석해 필요한 엔티티 타입·관계 타입·모달리티를 추출하는 원리를 이해한다</span>
+        </div>
+      </div>
+      <div class="obj-item">
+        <div class="obj-num">2</div>
+        <div class="obj-text">
+          <strong>멀티모달 다중 경로 검색</strong>
+          <span>텍스트·테이블·이미지를 동시에 검색해 다양한 소스에서 근거를 수집하는 방법을 익힌다</span>
+        </div>
+      </div>
+      <div class="obj-item">
+        <div class="obj-num">3</div>
+        <div class="obj-text">
+          <strong>로컬 지식 그래프(KG) 구축</strong>
+          <span>검색된 문서에서 엔티티와 관계를 추출해 쿼리 전용 지식 그래프를 동적으로 만드는 과정을 이해한다</span>
+        </div>
+      </div>
+      <div class="obj-item">
+        <div class="obj-num">4</div>
+        <div class="obj-text">
+          <strong>멀티모달 정보 보충</strong>
+          <span>이미지·표 데이터를 KG 노드에 연결해 텍스트만으로는 답하기 어려운 정보를 보강한다</span>
+        </div>
+      </div>
+      <div class="obj-item">
+        <div class="obj-num">5</div>
+        <div class="obj-text">
+          <strong>그래프 기반 멀티홉 추론</strong>
+          <span>KG 경로를 순회하며 여러 단계를 거쳐 최종 답변에 도달하는 추론 체인을 관찰한다</span>
+        </div>
+      </div>
+      <div class="obj-item">
+        <div class="obj-num">6</div>
+        <div class="obj-text">
+          <strong>GraphRAG vs 단순 RAG 비교</strong>
+          <span>일반 RAG(단순 유사도 검색)와 달리 그래프 구조가 멀티홉 질문 해결에 어떤 이점을 주는지 체감한다</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 파이프라인 다이어그램 -->
+  <div class="pipeline-diagram">
+    <h2>5단계 파이프라인</h2>
+    <div class="pipeline-steps">
+      <div class="pipe-step" id="pipe1">
+        <div class="pipe-step-icon">🔍</div>
+        <div class="pipe-step-num">Step 1</div>
+        <div class="pipe-step-name">Query Analysis</div>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step" id="pipe2">
+        <div class="pipe-step-icon">📥</div>
+        <div class="pipe-step-num">Step 2</div>
+        <div class="pipe-step-name">Multi-path Retrieval</div>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step" id="pipe3">
+        <div class="pipe-step-icon">🕸️</div>
+        <div class="pipe-step-num">Step 3</div>
+        <div class="pipe-step-name">Local KG Build</div>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step" id="pipe4">
+        <div class="pipe-step-icon">🖼️</div>
+        <div class="pipe-step-num">Step 4</div>
+        <div class="pipe-step-name">Multimodal Supplement</div>
+      </div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step" id="pipe5">
+        <div class="pipe-step-icon">🧠</div>
+        <div class="pipe-step-num">Step 5</div>
+        <div class="pipe-step-name">Graph Reasoning</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 쿼리 입력 -->
+  <div class="query-section">
+    <h2>질문 선택 / 입력</h2>
+    <div class="preset-questions" id="preset-list"></div>
+    <div class="query-input-row">
+      <input class="query-input" id="query-input" type="text" placeholder="직접 질문을 입력하세요..." />
+      <button class="run-btn" id="run-btn" onclick="runPipeline()">▶ 실행</button>
+    </div>
+  </div>
+
+  <!-- 결과 -->
+  <div class="results" id="results">
+
+    <div class="step-card" id="card1">
+      <div class="step-header">
+        <span class="step-badge">STEP 1</span>
+        <span class="step-title">Query Analysis → Pattern Graph</span>
+        <span class="step-status" id="status1">대기 중</span>
+      </div>
+      <div class="step-body" id="body1"></div>
+    </div>
+
+    <div class="step-card" id="card2">
+      <div class="step-header">
+        <span class="step-badge">STEP 2</span>
+        <span class="step-title">Multi-path Retrieval</span>
+        <span class="step-status" id="status2">대기 중</span>
+      </div>
+      <div class="step-body" id="body2"></div>
+    </div>
+
+    <div class="step-card" id="card3">
+      <div class="step-header">
+        <span class="step-badge">STEP 3</span>
+        <span class="step-title">Local KG Construction</span>
+        <span class="step-status" id="status3">대기 중</span>
+      </div>
+      <div class="step-body" id="body3"></div>
+    </div>
+
+    <div class="step-card" id="card4">
+      <div class="step-header">
+        <span class="step-badge">STEP 4</span>
+        <span class="step-title">Multimodal Supplement</span>
+        <span class="step-status" id="status4">대기 중</span>
+      </div>
+      <div class="step-body" id="body4"></div>
+    </div>
+
+    <div class="step-card" id="card5">
+      <div class="step-header">
+        <span class="step-badge">STEP 5</span>
+        <span class="step-title">Graph-based Reasoning → Answer</span>
+        <span class="step-status" id="status5">대기 중</span>
+      </div>
+      <div class="step-body" id="body5"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // 프리셋 질문 로드
+  fetch('/api/questions')
+    .then(r => r.json())
+    .then(questions => {
+      const list = document.getElementById('preset-list');
+      questions.forEach(q => {
+        const btn = document.createElement('button');
+        btn.className = 'preset-btn';
+        btn.textContent = q.question;
+        btn.onclick = () => {
+          document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          document.getElementById('query-input').value = q.question;
+        };
+        list.appendChild(btn);
+      });
+    });
+
+  function setStepState(num, state) {
+    const card = document.getElementById('card' + num);
+    const pipe = document.getElementById('pipe' + num);
+    const status = document.getElementById('status' + num);
+    card.className = 'step-card ' + state;
+    pipe.className = 'pipe-step ' + state;
+    if (state === 'running') {
+      status.innerHTML = '<span class="spinner"></span>처리 중';
+    } else if (state === 'done') {
+      status.textContent = '완료 ✓';
+    }
+  }
+
+  function renderStep1(data) {
+    const body = document.getElementById('body1');
+    const modTags = data.required_modalities.map(m =>
+      `<span class="tag ${m}">${m}</span>`
+    ).join('');
+    const subqs = data.subqueries.map(s => `<li style="color:#a0aec0;font-size:.82rem;margin-bottom:4px">${s}</li>`).join('');
+    body.innerHTML = `
+      <div class="data-grid">
+        <div class="data-item">
+          <div class="data-label">질문 유형</div>
+          <div class="data-value">${data.question_type}</div>
+        </div>
+        <div class="data-item">
+          <div class="data-label">핵심 엔티티</div>
+          <div class="data-value">${data.focus_entity}</div>
+        </div>
+        <div class="data-item">
+          <div class="data-label">추론 Hop</div>
+          <div class="data-value">${data.hop_count} hop</div>
+        </div>
+        <div class="data-item">
+          <div class="data-label">필요 모달리티</div>
+          <div class="tag-list">${modTags}</div>
+        </div>
+        <div class="data-item">
+          <div class="data-label">엔티티 타입</div>
+          <div class="tag-list">${data.entity_types.map(e => `<span class="tag">${e}</span>`).join('')}</div>
+        </div>
+        <div class="data-item">
+          <div class="data-label">관계 타입</div>
+          <div class="tag-list">${data.relation_types.map(r => `<span class="tag">${r}</span>`).join('')}</div>
+        </div>
+      </div>
+      <div style="margin-top:14px">
+        <div class="section-label">서브쿼리 분해</div>
+        <ol style="padding-left:16px">${subqs}</ol>
+      </div>`;
+  }
+
+  function renderStep2(data) {
+    const body = document.getElementById('body2');
+    const items = data.map(d => `
+      <div class="doc-item">
+        <span class="doc-badge ${d.modality}">${d.modality.toUpperCase()}</span>
+        <span class="doc-content"><strong style="color:#718096">${d.doc_id}</strong> · ${d.content}...</span>
+        <span class="doc-score">score: ${d.score}</span>
+      </div>`).join('');
+    body.innerHTML = `<div class="doc-list">${items}</div>`;
+  }
+
+  function renderStep34(stepNum, data) {
+    const body = document.getElementById('body' + stepNum);
+    body.innerHTML = `
+      <div class="kg-stats">
+        <div class="kg-stat">
+          <div class="kg-stat-num">${data.nodes}</div>
+          <div class="kg-stat-label">노드 (엔티티)</div>
+        </div>
+        <div class="kg-stat">
+          <div class="kg-stat-num">${data.edges}</div>
+          <div class="kg-stat-label">엣지 (관계)</div>
+        </div>
+      </div>`;
+  }
+
+  function renderStep5(data) {
+    const body = document.getElementById('body5');
+    const pct = Math.round(data.confidence * 100);
+    const chain = data.reasoning_chain.map((s, i) => `
+      <div class="reasoning-step">
+        <div class="step-dot">${i+1}</div>
+        <div class="step-text">${s}</div>
+      </div>`).join('');
+    const evidenceTags = data.evidence_nodes.map(n =>
+      `<span class="evidence-tag">${n}</span>`).join('');
+    const graphHtml = data.graph_image
+      ? `<img class="graph-img" src="data:image/png;base64,${data.graph_image}" alt="Knowledge Graph"/>`
+      : '';
+    body.innerHTML = `
+      <div class="answer-box">
+        <div class="answer-label">최종 답변</div>
+        <div class="answer-text">${data.answer}</div>
+        <div class="confidence-bar-wrap">
+          <span class="confidence-label">신뢰도</span>
+          <div class="confidence-bar">
+            <div class="confidence-fill" style="width:${pct}%"></div>
+          </div>
+          <span class="confidence-pct">${pct}%</span>
+        </div>
+      </div>
+      <div class="section-label">추론 체인</div>
+      <div class="reasoning-chain">${chain}</div>
+      <div class="section-label">근거 노드</div>
+      <div class="evidence-nodes">${evidenceTags}</div>
+      ${graphHtml}`;
+  }
+
+  function resetCards() {
+    for (let i = 1; i <= 5; i++) {
+      document.getElementById('card' + i).className = 'step-card';
+      document.getElementById('pipe' + i).className = 'pipe-step';
+      document.getElementById('status' + i).textContent = '대기 중';
+      document.getElementById('body' + i).innerHTML = '';
+    }
+  }
+
+  function runPipeline() {
+    const query = document.getElementById('query-input').value.trim();
+    if (!query) { alert('질문을 입력해주세요.'); return; }
+
+    resetCards();
+    document.getElementById('results').classList.add('visible');
+    document.getElementById('run-btn').disabled = true;
+
+    const evtSource = new EventSource('/api/run?' + new URLSearchParams());
+
+    // POST via fetch with ReadableStream
+    const ctrl = new AbortController();
+
+    fetch('/api/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query }),
+      signal: ctrl.signal,
+    }).then(res => {
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+
+      function read() {
+        reader.read().then(({ done, value }) => {
+          if (done) { document.getElementById('run-btn').disabled = false; return; }
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split('\n\n');
+          buf = lines.pop();
+          lines.forEach(line => {
+            if (!line.startsWith('data:')) return;
+            const payload = JSON.parse(line.slice(5).trim());
+            handleEvent(payload);
+          });
+          read();
+        });
+      }
+      read();
+    }).catch(() => {
+      document.getElementById('run-btn').disabled = false;
+    });
+  }
+
+  function handleEvent(payload) {
+    if (payload.step === 'error') {
+      alert('오류: ' + payload.message);
+      document.getElementById('run-btn').disabled = false;
+      return;
+    }
+    if (payload.step === 'complete') {
+      document.getElementById('run-btn').disabled = false;
+      return;
+    }
+    if (typeof payload.step === 'number') {
+      if (payload.status === 'running') {
+        setStepState(payload.step, 'running');
+      } else if (payload.status === 'done') {
+        setStepState(payload.step, 'done');
+        if (payload.step === 1) renderStep1(payload.data);
+        if (payload.step === 2) renderStep2(payload.data);
+        if (payload.step === 3) renderStep34(3, payload.data);
+        if (payload.step === 4) renderStep34(4, payload.data);
+        if (payload.step === 5) renderStep5(payload.data);
+      }
+    }
+  }
+
+  // Enter 키로도 실행
+  document.getElementById('query-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') runPipeline();
+  });
+</script>
+</body>
+</html>
